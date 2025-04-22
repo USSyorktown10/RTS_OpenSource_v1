@@ -3,6 +3,7 @@ from garminconnect import Garmin
 from datetime import datetime, timedelta
 import json
 import sqlite3
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'

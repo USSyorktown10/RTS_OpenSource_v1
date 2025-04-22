@@ -1,9 +1,9 @@
-### Functions and Endpoints
+# Functions and Endpoints
 
 ## Functions
-- Home
+- ### Home
   - Shows all activities from friends, recommended challenges, targets, and weekly stats
-- RTS AI
+- ### RTS AI
   - Recommended workout for the day
   - Daily Brefing: can send notification every day at certain time too
     - The weather today, what time you should run at, what to eat, route for the day, workout for the day, and feedback/input on what you want to do
@@ -12,8 +12,9 @@
   - Find me routes for this workout (RTS Pathfunder)
     - Maps, routes, workout so that GAP=Target pace
   - Run wear - gives you clothes to use during runs that allow mobility but keep you warm/cool
-  - Training Plans
-    - Start
+  - **Training Plans**
+    - 
+    - **Start**
       - 400, 800, 1600, 3k, 3200, 5k, 10k, Half-Marathon, Marathon, Custom
       - Give goal for distance
       - Give fastest mile
@@ -24,21 +25,131 @@
         - CONVERT min/mi with this: 
           - seconds --> decimal: $\frac{seconds}{60}$ aka: (seconds/60)
           - decimal --> seconds: decimal * 60
-        - STEPS:
+        - **STEPS:**
+          - 
           - 1. Calculate Target page (TP)
             - TP = $\frac{g}{d}$ also shown as: (G/D) goal time for race/distance
               - Results in required pace in minutes per mile
           - 2. Calculate Improvement needed (I)
             - I = T - TP 
             - This calculates the difference between fastest mile and target pace
-    - View Current
-- Injury Prevention and Nutrition
+          - 3. Estimate training duration
+            - IF I > 0:
+              - W = $\frac{\log\left(\frac{T}{\text{TP}}\right)}{\log(1 + F)}$
+              - Finds estimated weeks with F as training factor (estimated 2% per week)
+            - IF I ≤ 0:
+              - W = Min. conditioning period
+              - Approx. 8-12 weeks
+    - **View Current Stats**
+      - 
+      - See what you are doing today
+      - Veiw calender (if everything goes according to plan, this will work)
+        - Can change calender and runs based on sleep, food, hydration, etc.
+      - See how everyhting thats going on in your life affects this training plan
+      - Weeks left, estimated pace (based on fitness) compared to goal pace
+- **Injury Prevention and Nutrition**
+  - 
   - Log for injuries
   - AI runs stretching routines that fix all problems that you say your pain is
   - Fuel for after runs
   - Daily fuel and what to eat
   - How sleep, hydration, and food you have eaten has affected your runs, what to do better
-- 
+- **Charts and analytics**
+  - 
+  - Fitness, fatigue, training readiness, and acute training load.
+  - Calculation Steps: Power &rarr; HR Zone &rarr; Relative Effort &rarr; Fitness for Today &rarr; Acute Training Load &rarr; Training Readiness
+  - Power (Watts)
+  - Wattage Output (inputs include: elevation gradient, pace, cadence, stride length):
+    - $P_\text{Total} = (E_\text{run} \cdot M \cdot V) + (M \cdot G \cdot H_\text{osc} \cdot F) + (\frac{1}{2} \cdot P \cdot A_{frontal} \cdot C_\text{d} \cdot v^3) + (M \cdot G \cdot v \cdot \sin(\theta))$
+    - **BREAKDOWN:**
+      - 
+      - $\text{Horizontal power}$ $(E_\text{run} \cdot M \cdot V)$
+        - $E_\text{run}$ is the energy cost per unit distance per mass $\text{J/kg/m}$
+        - Typical value is $\text{1.036J/kg/m}$ (equivalent to $\text{~1 kcal/kg/m}$)
+        - $M$ is runner mass (in $kg$)
+        - $V$ is velocity $(m/s)$
+          - $V$ is the time of one mile in seconds
+          - $V$ = $1609/360 = 4.47 \text{ m/s (6 minute mile)}$
+            - $360$ seconds is a $\text{6 minute mile}$
+      - $\text{Vertical Power Component}$ $(M \cdot G \cdot H_\text{osc} \cdot F)$
+        - $M$ is the runner mass in $kg$
+        - $G$ is the acceleration due to gravity $(9.81 \text{ }m/s^2)$
+        - $H_\text{osc}$ is vertical oscillation per stride $(meters)$
+          - Typically $0.05-0.12$ $m$
+          - Measured using wearables like GPS watches
+        - $F$ is cadence (or steps per second)
+          - $\text{F} = \frac{v \cdot k}{\text{stride length}}$
+          - Where $k=2$ (account for both legs)
+          - Stride length can be estimated as height $(meters) \cdot 1.14$
+          - Example for a runner who is $1.75$ meters tall, running at $4.47$ $m/s$: (and stride length is $1.995$)
+          - $F = \frac{4.47 \cdot 2}{1.995} = 4.48 \text{ steps/sec (~268 steps/min)}$
+        - Air resistance power component $(\frac{1}{2} \cdot P \cdot A_\text{frontal} \cdot C_d \cdot v^3)$
+          - $P$ is air density ($1.225\text{ }kg/m^3$ at sea level)
+        - $A_\text{frontal}$ is the $frontal$ area of the runner (in square meters)
+          - Typical value is $~0.5m^2$
+        - $C_d$ is coefficient drag (unitless)
+          - ~1.0 typical for runners wearing tight clothing
+        - $V^3$ is the velocity term raised to the third power ($m/s^3$)
+          - Already calculated in the horizontal power component
+        - Incline/Decline power component $(M \cdot G \cdot V \cdot \sin(\theta))$
+          - $M$ is the runner mass in kg
+          - $G$ is the acceleration due to gravity
+          - $V$ is the runner's velocity in meters per second
+          - $\sin(\theta)$ is the sine of the inclination angle $\theta$.
+            - For a given gradient $(\text{\% slope})$: $\sin(\theta)$ $=$ $gradient$ $\frac{\%}{100}$
+            - $5\%$ incline would be $\sin(\theta)$ = $\frac{5}{100}$ $=$ $0.05$
+
+  - **Relative Effort**
+    - 
+    - $\text{RE} = {\frac{\text{P} \cdot \text{D}}{W} \cdot \frac{1}{t} + \left(1 + \frac{\text{Elevation gain}}{D}\right) \cdot \text{HR Average}}$
+      - P = Power in watts (see above)
+      - W = weight in kg
+      - D = Distance in km
+      - T = time (seconds)
+      - $\text{1}+\frac{\text{elevation gain}}{D}$ = adjustment for terrain gradients
+      - HRavg = Average HR (% of maximum)
+
+  - **Fitness**
+    - 
+    - **$ATL$ MEANS FATIGUE, $CTL$ MEANS FITNESS**
+      - $ATL$: Acute Training Load (Fatigue, Training Load)
+      - $CTL$: Chronic Training Load (Fitness)
+    - Long term fitness
+    - Calculated on a scale from 1-200
+    - RUN THROUGH EVERY RUN WHEN NEW IS ADDED (42 DAYS)
+    - $\text{CTL} = \sum_{i=1}^{N}{\left(\text{RE Activity}_{i} \cdot e^{-\frac{\Delta t_i}{T_{fit}}} \right)}$
+      - $CTL$ = fitness
+      - $\text{RE Activity}_\text{i}$ is the relative effort (RE Activity) of the  day $i$ workout.
+      - $\Delta t_i$ is the number of days since the $i$-th workout was performed. (Example: If it was 2 days ago, it would be $-\frac{2}{42}$)
+      - $T_{fit}$ is the time constant for fitness (e.g., 42 days).
+      - $\sum_{i=1}^{N}$ Where $N$ = Number of days that activities that have been completed (e.g., if you have done runs for 5 days N = 5) and where $i$ is the indexing day (e.g., $i$ is 1, so RE Activty of day 1, changes to 2 next itteration, so $i$ of RE Activity of day 2 and so on)
+  - **Exponential Weighting for recent fatigue**
+    - 
+    - RUN THROUGH EVERY RUN WHEN NEW IS ADDED (7 DAYS)
+    - $\text{ATL} = \frac{{\sum_{i=1}^{N}\left(\text{RE Activity}_{i} \cdot e^ {-\frac{\Delta t_i}{T_{fat}}} \right)}}{\text{Time Period}}$
+      - $\text{ATL}$ = fatigue
+      - ${T_{fat}}$ = Time constant for fatigue (7 days)
+      - Works the same as $CTL$ (Look above)
+      - $\text{Time Period}$ = Whatever is specified. 7 days for week, 1 day for recent activities, and 14-30 days for 2 weeks, month, etc
+  - **Fitness relative to Fatigue**
+    - 
+    - CALCULATE WHEN CTL AND ATL ARE UPDATED
+    - $\text{Form (TSB)} = CTL - ATL$
+      - Positive TSB means well rested and ready to preform
+      - Negative TSB means fatigue is grater than fitness and could mean injury or strain (need rest to prevent injury)
+  - **Min and Max formulas**
+    - 
+    - **CTL**
+      - $\frac{\text{CTL} - CTL_\text{min}}{ CTL_\text{max} - CTL_\text{min}} \cdot 100$
+      - $CTL_\text{min}$ = 0
+      - $CTL_\text{max}$ = 200
+      - $CTL$ = Current
+    - **ATL**
+      - $\frac{\text{ATL} - ATL_\text{min}}{ ATL_\text{max} - ATL_\text{min} } \cdot 100$
+      - $ATL_\text{min}$ = 0
+      - $ATL_\text{max}$ = 100
+      - $ATL$ = Current
+
 
 ## Endpoints
 
@@ -156,4 +267,13 @@ route('/social/<int:activity_id>/<int:comment_id>/<int:my_post?>/edit_comment' [
 - DELETE:
   - Deletes the comment, followed by a reload to display changes
 
-route('/)
+route('/rtsai/<int:user_id>' [GET])
+- RENDER: rts_ai.html
+  - FETCH daily breifing
+  - FETCH recommended workout for the day
+  - FETCH Runwear 
+  - Show options to enter daily brefing, recomended workouts, runwear, pathfinder. Show previews of everything, EX:
+    - Daily Brefing: You had good sleep tonight, so you can do ____. (Learn More)
+    - Recommended Workouts: Based on your good sleep last night, your ready for a tempo. (Open Workout)
+    - Run Wear: Today will be hot near the afternoon and cold in the mornings. (What to Wear based on Times)
+    - Pathfinder: {Display 2 maps, one visible one in a carusel slider. 1st one is planned map for todays workout, and 2nd is recently created route.}(Plan your route)
