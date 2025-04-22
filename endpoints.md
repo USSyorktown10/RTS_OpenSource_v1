@@ -277,3 +277,18 @@ route('/rtsai/<int:user_id>' [GET])
     - Recommended Workouts: Based on your good sleep last night, your ready for a tempo. (Open Workout)
     - Run Wear: Today will be hot near the afternoon and cold in the mornings. (What to Wear based on Times)
     - Pathfinder: {Display 2 maps, one visible one in a carusel slider. 1st one is planned map for todays workout, and 2nd is recently created route.}(Plan your route)
+
+route('/calculations/<int:user_id>/<int:calc_type>' [GET, POST])
+- NO RENDER
+- Calc IDs:
+  - 001: HR Zone
+  - 002: Wattage
+  - 003: Relative Effort
+  - 004: CTL
+  - 005: ATL
+  - 006: Fatigue
+  - 007: Pace Zones
+- GET Types:
+  - Get 001-007
+  - Fufill required vars
+  - 
