@@ -1,4 +1,5 @@
 # Functions and Endpoints
+Currently, 99% of the following is purely planned, and not what *0.1.0-alpha.1* is going to look like. To see what the next release will look like, go to ```version_planning.md```.
 
 ## Functions
 - ### Home
@@ -153,25 +154,25 @@
 
 ## Endpoints
 
-route('/')
+```route('/')```
 - render index.html
 
-route('/connect-garmin' [POST, GET])
+```route('/connect-garmin' [POST, GET])```
 - Connect to garmin connect API through API login
 - Receive regreshing data from their garmin account
 
-route('/fetch-activities' [GET])
+```route('/fetch-activities' [GET])```
 - Load all activities onto index.html
 
-route('/fetch-activities/<int:activity_id>' [GET])
+```route('/fetch-activities/<int:activity_id>' [GET])```
 - Open an activity and get all stats 
 - redirect to activity.html
 
-route('/fetch-activities/<int:activity_id>/map' [GET])
+```route('/fetch-activities/<int:activity_id>/map' [GET])```
 - Render whole map
 - activity_map.html
 
-route('/fetch-activities/<int:activity_id>/rtsai/<int:ai_query>' [POST, GET])
+```route('/fetch-activities/<int:activity_id>/rtsai/<int:ai_query>' [POST, GET])```
 - redirect to activity_ai.html
 - ai query:
     - 001: Overall such as irregulatrities, changes, progressions, elevation, and anything else (based on water intake, sleep, all that affected w/o)
@@ -186,7 +187,7 @@ route('/fetch-activities/<int:activity_id>/rtsai/<int:ai_query>' [POST, GET])
     - 210: Meal planning for post workout and rest of day 
     - 311: Based on todays work load, what tomorrow will be
 
-route('/fetch-activities/<int:activity_id>/edit' [PUT, GET])
+```route('/fetch-activities/<int:activity_id>/edit' [PUT, GET])```
 - Redirect to activity_edit.html
 - Edit the following:
     - Title
@@ -217,7 +218,7 @@ route('/fetch-activities/<int:activity_id>/edit' [PUT, GET])
   - Elevation
   - Power
 
-route('/fetch-activities/<int:activity_id>/map/<int:route_id>' [GET, POST])
+```route('/fetch-activities/<int:activity_id>/map/<int:route_id>' [GET, POST])```
 - redirect to: activity_map.html
 - POST method:
   - If saving route
@@ -227,47 +228,47 @@ route('/fetch-activities/<int:activity_id>/map/<int:route_id>' [GET, POST])
   - Leaderboards
   - Segments
 
-route('/social/<int:activity_id>/view' [POST])
+```route('/social/<int:activity_id>/view' [POST])```
 - NO RENDER
 - Adds a view onto an activity if someone enganges (sits on it) for longer than 5 seconds OR opens activity
 
-route('/social/<int:activity_id>/like' [POST])
+```route('/social/<int:activity_id>/like' [POST])```
 - NO RENDER
 - Adds a like to the post (shows that you liked it)
   - eg. You and 5 others liked "Long Run"
     - Shows users that did it
     - And their pfp
 
-route('/social/<int:activity_id>/remove_like' [DELETE])
+```route('/social/<int:activity_id>/remove_like' [DELETE])```
 - RELOAD RENDER
 - Removes like from activity_id
 
-route('/fetch-activities/<int:activity_id>/comment' [GET])
+```route('/fetch-activities/<int:activity_id>/comment' [GET])```
 - Render template: activity_comments.html
 - Opens comment section and displays all comments
 - has text box too
 
-route('/social/<int:activity_id>/post_comment' [POST])
+```route('/social/<int:activity_id>/post_comment' [POST])```
 - RELOAD PAGE
 - Posts comment as your name, timestamp, details, and likeable
 
-route('/social/<int:activity_id>/<int:comment_id>/like_comment' [POST])
+```route('/social/<int:activity_id>/<int:comment_id>/like_comment' [POST])```
 - NO RENDER
 - Adds a like (from you) onto comment posted by someone on an activity
 - eg you and 5 others liked "comment"
 
-route('/social/<int:activity_id>/<int:comment_id>/remove_like_comment' [DELETE])
+```route('/social/<int:activity_id>/<int:comment_id>/remove_like_comment' [DELETE])```
 - NO RENDER
 - Removes the like you posted on a comment
 
-route('/social/<int:activity_id>/<int:comment_id>/<int:my_post?>/edit_comment' [PUT, DELETE])
+```route('/social/<int:activity_id>/<int:comment_id>/<int:my_post?>/edit_comment' [PUT, DELETE])```
 - Reload: activity_comments.html
 - PUT:
   - Edits the comment and you can change info you want, then resubmit followed by reload
 - DELETE:
   - Deletes the comment, followed by a reload to display changes
 
-route('/rtsai/<int:user_id>' [GET])
+```route('/rtsai/<int:user_id>' [GET])```
 - RENDER: rts_ai.html
   - FETCH daily breifing
   - FETCH recommended workout for the day
@@ -277,18 +278,139 @@ route('/rtsai/<int:user_id>' [GET])
     - Recommended Workouts: Based on your good sleep last night, your ready for a tempo. (Open Workout)
     - Run Wear: Today will be hot near the afternoon and cold in the mornings. (What to Wear based on Times)
     - Pathfinder: {Display 2 maps, one visible one in a carusel slider. 1st one is planned map for todays workout, and 2nd is recently created route.}(Plan your route)
+  - **Workflow:**
+    - Daily Briefing:
+      - Inputs:
+        - 001 (Today's Distance)
+        - 012 (Sleep Data)
+        - 013 (Hydration Data)
+        - 014 (Nutrition Data)
+      - Outputs:
+        - Summary of the user's readiness for the day (e.g., "You had 7 hours of sleep and drank 2L of water. You're ready for a tempo run today.").
+        
+    - Recommended Workout:
+      - Inputs:
+        - 004 (CTL)
+        - 005 (ATL)
+        - 006 (Fatigue)
+      - Outputs:
+        - Suggested workout type (e.g., "Easy run for 5 miles to recover from yesterday's effort.").
+      
+    - Run Wear:
+      - Inputs:
+        - Weather data (temperature, humidity, wind).
+      - Outputs:
+        - Recommended clothing for the run (e.g., "Wear a light jacket and running tights.").
+      
+    - Pathfinder:
+      - Inputs:
+        - 001 (Today's Distance), 007 (Pace Zones).
+      - Outputs:
+        - Suggested running routes that match the workout plan.
 
-route('/calculations/<int:user_id>/<int:calc_type>' [GET, POST])
+```route('/calculations/<int:user_id>/<int:calc_type>' [GET, POST, PUT])```
 - NO RENDER
 - Calc IDs:
   - 001: HR Zone
+  Calculates heart rate zones based on the user's max HR and resting HR.
+  Inputs: 010 (Average HR), user profile data (age, max HR).
+  Outputs: HR zones (e.g., Zone 1, Zone 2, etc.).
+
   - 002: Wattage
+  Computes power output (watts) based on pace, elevation, and cadence.
+  Inputs: 001 (Distance), 005 (Time), elevation data, cadence data.
+  Outputs: Power in watts.
+
   - 003: Relative Effort
-  - 004: CTL
-  - 005: ATL
+  Calculates effort based on power, distance, and heart rate.
+  Inputs: 001 (Distance), 005 (Time), 010 (Average HR).
+  Outputs: Relative Effort score.
+
+  - 004: CTL (Chronic Training Load)
+  Measures long-term fitness based on training history.
+  Inputs: Historical 003 (Relative Effort) values.
+  Outputs: CTL score.
+
+  - 005: ATL (Acute Training Load)
+  Measures short-term fatigue based on recent training.
+  Inputs: Recent 003 (Relative Effort) values.
+  Outputs: ATL score.
+
   - 006: Fatigue
+  Calculates fatigue as the difference between ATL and CTL.
+  Inputs: 004 (CTL), 005 (ATL).
+  Outputs: Fatigue score.
+
   - 007: Pace Zones
+  Determines pace zones for training (e.g., easy, tempo, threshold).
+  Inputs: 009 (Average Pace), user profile data.
+  Outputs: Pace zones.
 - GET Types:
   - Get 001-007
   - Fufill required vars
-  - 
+  - Display on Frontend (where needed)
+- POST/PUT Types:
+  - Submit calcs to backend with user
+  - POST if there is no value for calc preformed, PUT if there is an existing one
+
+```route('/fetch_user/<int:user_id>/<int:data_key>' [GET])```
+- NO RENDER
+- Fetches data from <user_id>
+- Data Keys:
+  - 001: Today's Distance (in miles or kilometers)
+  - 002: Weekly Distance (total distance covered in the current week)
+  - 003: Monthly Distance (total distance covered in the current month)
+  - 004: Yearly Distance (total distance covered in the current year)
+  - 005: Today's Running Time (total time spent running today)
+  - 006: Weekly Running Time (total time spent running this week)
+  - 007: Monthly Running Time (total time spent running this month)
+  - 008: Yearly Running Time (total time spent running this year)
+  - 009: Average Pace (calculated from recent runs)
+  - 010: Average Heart Rate (from recent runs)
+  - 011: Calories Burned (based on recent activities)
+  - 012: Sleep Data (hours of sleep and quality)
+  - 013: Hydration Data (water intake for the day)
+  - 014: Nutrition Data (calories consumed, macronutrient breakdown)
+  - 015: Injury Reports (any logged injuries or pain points)
+  - 016: Training Readiness (calculated from fatigue, fitness, and recovery metrics)
+
+```route('/fetch_user/<int:user_id>/<int:data_key>/<datetime:timestamp' [GET])```
+- NO RENDER
+- Datetime decoder:
+```python
+class DateTimeConverter(BaseConverter):
+    regex = r'\d{4}-\d{2}-\d{2}\+\d{2}%3A\d{2}%3A\d{2}\.\d{6}'
+
+    def to_python(self, value):
+        value = value.replace('+', ' ').replace('%3A', ':')
+        return datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+
+    def to_url(self, value):
+        return value.strftime('%Y-%m-%d+%H%%3A%M%%3A%S.%f')
+```
+- Data Keys:
+  - 9001: ```<day>``` Distance (distance covered on the specified day)
+  - 9002: ```<day>``` Time (total time spent running on the specified day)
+  - 9003: ```<day>``` Activity (activity details for the specified day)
+  - 9004: ```<day>``` HR (average heart rate for the specified day)
+  - 9005: ```<day>``` Calories Burned (calories burned during activities on the specified day)
+  - 9006: ```<day>``` Sleep Data (hours and quality of sleep for the specified day)
+  - 9007: ```<day>``` Hydration Data (water intake for the specified day)
+  - 9008: ```<day>``` Nutrition Data (calories and macronutrient breakdown for the specified day)
+  - 9009: ```<day>``` Training Readiness (calculated readiness score for the specified day)
+  - 9010: ```<day>``` Injury Reports (any injuries logged on the specified day)
+  - 9011: ```<day>``` Weather Data (temperature, humidity, wind, etc., for the specified day)
+- Example Usage:
+  - Query:
+    ```bash
+    GET /fetch_user/12345/9001/2025-04-22+12%3A00%3A00.000000
+    ```
+  - Response:
+    ```json
+      {
+        "user_id": 12345,
+        "data_key": 9001,
+        "timestamp": "2025-04-22T12:00:00.000000",
+        "value": "5.2 miles"
+      }
+    ```
