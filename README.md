@@ -34,8 +34,11 @@ At RTS, we're always looking for passionate individuals to help us grow and impr
   - **Testing**: Try out RTS and provide feedback on features, usability, and performance. Get access to RTS before its first release as early as May 31 of 2025 and give feedback.
   - **Content Creation**: Write blog posts, tutorials, or guides to help others use RTS effectively.  
   - **Community Engagement**: Spread the word about RTS on social media, forums, or running groups.  
-  - **Feature Suggestions**: Share your ideas for new features or improvements by creating an issue in our repository.  
+  - **Feature Suggestions**: Share your ideas for new features or improvements by creating an issue in our repository. 
+  - **Developing**: Contribute by creating a branch and writing some code. If we approve, we'll merge the branch, and you will get credit on the final release (if you want.)
 
 If you're interested in contributing in any way, feel free to reach out to us at [RTS Support](mailto:joemarch954@gmail.com). Together, we can make RTS the ultimate tool for runners everywhere!
 
+Current Contributers:
 
+**[USSyorktown10](https://github.com/USSyorktown10)** (Creator)

@@ -3,10 +3,11 @@
 - RTS follows semantic versioning or SEMVAR.
 
 ## Current Version
-*v. 0.0.0-alpha.2*
+*v. 0.0.0-alpha.2 and 0.0.0-alpha.3*
 
 - Development stage. No features yet. First version of open sourced development. Testers are not contributing yet, but we are gathering more testers.
 - Non-endpoint and offline version is avalible too (run_data.py)
+- Alpha.3 is an offline as well but with an introduction to some AI insights like anomoly spotting.
 
 ## Planned Versions
 - *v. 0.1.0-alpha.1*
