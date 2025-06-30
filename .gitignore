@@ -1,0 +1,4 @@
+.venv
+strava_activities.json
+strava_tokens.db
+keys.txt

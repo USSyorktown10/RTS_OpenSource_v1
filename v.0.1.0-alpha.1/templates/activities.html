@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RTS Activities</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f9fa; }
+        .centered-box {
+            background: #fff;
+            margin: 30px 0;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 600px;
+            position: relative;
+        }
+        .feed-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        width: 100%;
+        flex: 2;
+        }
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            width: 100%;
+        }
+        .sidebar {
+            flex: 1;
+            margin-left: 40px;
+            min-width: 320px;
+        }
+        .stats-box {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .activity-title { font-size: 1.2em; font-weight: bold; margin-bottom: 8px; }
+        .activity-row { display: flex; align-items: center; margin-bottom: 6px; }
+        .activity-label { width: 120px; color: #555; }
+        .activity-value { font-weight: bold; }
+        .map-container {
+            width: 100%;
+            height: 180px;
+            margin-top: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .leaflet-control-container {
+            display: none;
+        }
+        .activity-time {
+            font-size: 0.95em;
+            color: #888;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href='/'><button>Home</button></a>
+</header>
+<div class="main-container">
+    <div class="feed-container">
+        <div>
+            {% for activity in activities %}
+            <div class="centered-box">
+                <div class="activity-row">
+                    <div class="activity-value activity-time">{{ activity.start_date_local|localtime }}</div>
+                </div>
+                <div class="activity-row" style="display: flex; align-items: center;">
+                    {% if activity.type == "Run" %}
+                        <img src="{{ url_for('static', filename='run.png') }}" alt="Run" style="height:24px;width:auto;margin-right:2px;">
+                        <span style="font-weight:bold; color:#000; margin-right:10px;">Run |</span>
+                    {% endif %}
+                    {% if activity.type == "Ride" %}
+                        <img src="{{ url_for('static', filename='bike.png') }}" alt="Bike" style="height:24px;width:auto;margin-right:2px;">
+                        <span style="font-weight:bold; color:#000; margin-right:10px;">Bike |</span>
+                    {% endif %}
+                    <span class="activity-value">{{ activity.name }}</span>
+                </div>
+                <div class="activity-row">
+                    <div class="activity-label">Distance:</div>
+                    <div class="activity-value">{{ (activity.distance / 1609.34) | round(2) }} mi</div>
+                    {% if activity.type == "Run" %}
+                        <div class="activity-label" style="margin-left:20px;">Pace:</div>
+                        <div class="activity-value">
+                            {% if activity.moving_time and activity.distance %}
+                                {% set pace_sec = ((activity.moving_time / (activity.distance / 1609.34)) | round(0, 'floor')) | int %}
+                                {% set pace_min = (pace_sec // 60) | int %}
+                                {% set pace_rem_sec = (pace_sec % 60) | int %}
+                                {{ pace_min }}:{% if pace_rem_sec < 10 %}0{% endif %}{{ pace_rem_sec }} min/mi
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                    {% elif activity.type == "Ride" %}
+                        <div class="activity-label" style="margin-left:20px;">Speed:</div>
+                        <div class="activity-value">
+                            {% if activity.moving_time and activity.distance %}
+                                {% set hours = activity.moving_time / 3600 %}
+                                {% set miles = activity.distance / 1609.34 %}
+                                {% set mph = (miles / hours) if hours > 0 else 0 %}
+                                {{ mph | round(1) }} mph
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    <div class="activity-label" style="margin-left:20px;">Time:</div>
+                    <div class="activity-value">
+                        {% set hours = activity.moving_time // 3600 %}
+                        {% set mins = (activity.moving_time % 3600) // 60 %}
+                        {% set secs = activity.moving_time % 60 %}
+                        {% if hours > 0 %}
+                            {{ hours }}:{{ mins if mins > 9 else '0' ~ mins }}:{{ secs if secs > 9 else '0' ~ secs }}
+                        {% else %}
+                            {{ mins }}:{{ secs if secs > 9 else '0' ~ secs }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="map-container" id="map{{ loop.index }}"></div>
+                {% if activity.map and activity.map.summary_polyline %}
+                <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+                <script src="https://unpkg.com/@mapbox/polyline"></script>
+                <script>
+                    const map = L.map(mapId, {
+                        zoomControl: false,
+                        dragging: false,
+                        scrollWheelZoom: false,
+                        doubleClickZoom: false,
+                        boxZoom: false,
+                        keyboard: false,
+                        tap: false,
+                        touchZoom: false,
+                        }).setView([0, 0], 13);
+                </script>
+                <script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        var map = L.map('map{{ loop.index }}').setView([0,0], 13);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 18,
+                        }).addTo(map);
+                        var poly = polyline.decode({{ activity.map.summary_polyline | tojson }});
+                        var latlngs = poly.map(function(coord) { return [coord[0], coord[1]]; });
+                        var polylineLayer = L.polyline(latlngs, {color: 'red'}).addTo(map);
+                        map.fitBounds(polylineLayer.getBounds());
+                    });
+                </script>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="sidebar">
+        <div class="stats-box">
+            <h3>This Weeks Mileage</h3>
+            <div id="weekly-mileage">{{ weekly_mileage }} mi</div>
+        </div>
+        <div class="stats-box">
+            <h3>Weekly Mileage Chart</h3>
+            <canvas id="mileageChart" width="300" height="300"></canvas>
+            <script>
+            const weekLabels = {{ week_labels|tojson }};
+            const weekTotals = {{ week_totals|tojson }};
+
+            const ctx = document.getElementById('mileageChart').getContext('2d');
+            const mileageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: weekLabels,
+                    datasets: [{
+                        label: 'Miles',
+                        data: weekTotals,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: {
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + ' mi';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Miles' }
+                        }
+                    }
+                }
+            });
+            </script>
+        </div>
+    </div>
+</div>
+</body>
+</html>
