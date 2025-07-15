@@ -1,0 +1,201 @@
+<html>
+<head>
+    <title>Edit Profile - RTS</title>
+    <link rel="icon" href="static/RTS.png" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f6ff;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #2563eb;
+            padding: 18px 0 14px 0;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+        }
+        header button {
+            background: #fb923c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-weight: bold;
+            font-size: 1em;
+            margin-left: 18px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        header button:hover {
+            background: #ffb366;
+            color: #2563eb;
+        }
+        .profile-menu {
+            position: absolute;
+            top: 22px;
+            right: 36px;
+            display: flex;
+            align-items: center;
+            z-index: 10;
+        }
+        .profile-menu img {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid #2563eb;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(37,99,235,0.10);
+        }
+        .profile-username {
+            font-weight: bold;
+            color:rgb(255, 255, 255);
+            margin-right: 14px;
+            font-size: 1.08em;
+        }
+        .profile-menu .logout-btn {
+            background: #fb923c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 7px 16px;
+            font-weight: bold;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .profile-menu .logout-btn:hover {
+            background: #ffb366;
+            color: #2563eb;
+        }
+        p {
+            margin: 5px 0;
+            margin-left: 10px;
+            font-size: 18px;
+            color: #666;
+        }
+        table {
+            margin: 20px;
+            border-collapse: collapse;
+            width: 300px;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        form {
+            margin: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="number"],
+        select {
+            width: 20%;
+            padding: 8px;
+        }
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button[type="button"] {
+            background: #e5e7eb;
+            color: #111827;
+        }
+        h2 {
+            margin: 2px 0;
+            margin-top: 20px;
+            margin-left: 20px;
+            font-size: 30px;
+            color: #333;
+        }
+        .profile-link {
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            gap: 4px; /* spacing between img and name */
+            cursor: pointer;
+        }
+        .profile-link img {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid #2563eb;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(37,99,235,0.10);
+        }
+    </style>
+</head>
+<header>
+    <a href='/'><button>Home</button></a>
+    <a href='/activities'><button>View Activities</button></a>
+
+    <div class="profile-menu">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('profile') }}" class="profile-link">
+                <img src="{{ url_for('static', filename=current_user.profile_pic) }}" alt="Profile Picture">
+                <span class="profile-username">{{ current_user.username }}</span>
+            </a>
+            <a href="{{ url_for('logout') }}">
+                <button class="logout-btn">Logout</button>
+            </a>
+        {% else %}
+            <a href="{{ url_for('login', next=request.path) }}">
+                <button>Login</button>
+            </a>
+        {% endif %}
+    </div>
+</header>
+<body>
+<br>
+<h2>Edit Your Profile</h2>
+<form method="POST" action="/edit_profile" onsubmit="return confirm('Are you sure you want to save changes? New changes can affect your training data and potentially hurt statistics.');">
+    <label>Weight:</label>
+    <input type="number" step="0.1" name="weight" value="{{ (user_data.weight * 2.20462) | int }}"> lbs<br><br>
+
+    <label>Height:</label>
+    <input type="number" name="height_feet" value="{{ user_data.height_feet }}" style="width: 50px;"> ft
+    <input type="number" name="height_inches" value="{{ user_data.height_inches | int }}" style="width: 50px;"> in<br><br>
+
+    <label>Age:</label>
+    <input type="number" name="age" value="{{ user_data.age }}"><br><br>
+
+    <label>Sex:</label>
+    <select name="sex">
+        <option value="M" {% if user_data.sex == "M" %}selected{% endif %}>Male</option>
+        <option value="F" {% if user_data.sex == "F" %}selected{% endif %}>Female</option>
+        <option value="O" {% if user_data.sex == "O" %}selected{% endif %}>Other</option>
+    </select><br><br>
+
+    <label>Max Heart Rate:</label>
+    <input type="number" name="max_hr" value="{{ user_stats.max_hr }}"> BPM<br><br>
+
+    <label>Stride Length:</label>
+    <input type="number" name="stride_length" value="{{ (user_stats.stride_length / 2.54) | int }}"> in<br><br>
+
+    <label>Horizontal Oscilation:</label>
+    <input type="number" step="0.01" name="hosc" value="{{ user_stats.hosc }}"> meters<br><br>
+
+    <label>Frontal Area:</label>
+    <input type="number" step="0.01" name="afrontal" value="{{ user_stats.afrontal }}"> square meters<br><br>
+
+    <button type="submit">Save</button>
+    <button type="button" onclick="window.location.href='/profile'">Cancel</button>
+</form>
+</body>
+</html>

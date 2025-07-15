@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Auth - RTS</title>
+<link rel="icon" href="static/RTS.png" type="image/x-icon">
+
+</head>
+<body>
+
+<style>
+    header {
+        background-color: #f8f9fa;
+        padding: 20px;
+        text-align: left;
+    }
+    .profile-menu {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        display: flex;
+        align-items: center;
+    }
+    .profile-link {
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        align-items: center;
+        gap: 4px; /* spacing between img and name */
+        cursor: pointer;
+    }
+    .profile-link img {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        margin-right: 10px;
+        border: 2px solid #2563eb;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(37,99,235,0.10);
+    }
+</style>
+{% if strava_connected %}
+    <h3>Thank you for joining RTS. Your Strava account is linked!</h3>
+    <h2>Last step! Fill out the following data so we can give you the most accurate </h2>
+    <form method="post">
+        <input type="float" name="height_feet" placeholder="Height (ft)" style="width: 100px;" required> ft
+        <input type="float" name="height_inches" placeholder="Height (in)" style="width: 100px;" required> in <br>
+        <input name="age" type="number" placeholder="Age" required><br>
+        <input name="max_hr" type="number" placeholder="Max Heartrate" required> bpm<br>
+        <input name="stride_length" type="number" placeholder="Stride Length (in)" required> inches<br>
+        <input name="hosc" type="float" placeholder="Horizontal Oscilation (Normally 0.05-0.12)" required> meters<br>
+        <input name="afrontal" type="float" placeholder="Frontal Area (Normally 0.5)" required> square meters<br>
+        <button type="submit">Finish</button>
+    </form>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>{% for msg in messages %}<li>{{ msg }}</li>{% endfor %}</ul>
+      {% endif %}
+    {% endwith %}
+{% else %}
+    <h3>Authorization failed. Please try again.</h3>
+{% endif %}
+</body>
+</html>

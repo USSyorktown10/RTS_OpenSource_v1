@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ activity.name }} - RTS</title>
+    <link rel="icon" href="{{ url_for('static', filename='RTS.png') }}" type="image/x-icon">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@mapbox/polyline"></script>    
+</head>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f0f6ff;
+        margin: 0;
+    }
+    header {
+        background: #2563eb;
+        padding: 18px 0 14px 0;
+        text-align: left;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+    }
+    header button {
+        background: #fb923c;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 18px;
+        font-weight: bold;
+        font-size: 1em;
+        margin-left: 18px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    header button:hover {
+        background: #ffb366;
+        color: #2563eb;
+    }
+    .map-container {
+        width: 100vw;
+        max-width: 1100px;
+        height: 350px;
+        margin: 0 auto;
+        border-radius: 12px;
+        border: 3px solid #2563eb;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.10);
+        overflow: hidden;
+        margin-bottom: 0;
+    }
+    .details-row {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        background: #fff;
+        padding: 32px 0;
+        font-size: 1.2em;
+        border-bottom: 1px solid #eee;
+        max-width: 1100px;
+        margin: 0 auto;
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.05);
+    }
+    .detail-box {
+        text-align: center;
+        margin: 0 20px;
+    }
+    .detail-label {
+        color: #2563eb;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+    .detail-value {
+        font-weight: bold;
+        font-size: 1.3em;
+        color: #222;
+    }
+    .calories-bar {
+        background: #fff;
+        max-width: 1100px;
+        margin: 0 auto 24px auto;
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 2px 8px rgba(251,146,60,0.08);
+        padding: 18px 0 10px 0;
+        text-align: center;
+        font-size: 1.15em;
+        color: #fb923c;
+        border-bottom: 3px solid #fb923c;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+    table {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.10);
+        margin: 32px auto;
+        width: 90vw;
+        max-width: 1100px;
+        border-collapse: collapse;
+    }
+    th {
+        background: #f0f6ff;
+        color: #2563eb;
+        font-weight: bold;
+        padding: 10px;
+    }
+    td {
+        padding: 8px;
+    }
+    p {
+        font-size: 1.2em;
+        text-align: center;
+        margin-top: 20px;
+        color: #2563eb;
+    }
+    .profile-menu {
+        position: absolute;
+        top: 22px;
+        right: 36px;
+        display: flex;
+        align-items: center;
+        z-index: 10;
+    }
+    .profile-link {
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        align-items: center;
+        gap: 4px; /* spacing between img and name */
+        cursor: pointer;
+    }
+    .profile-link img {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        margin-right: 10px;
+        border: 2px solid #2563eb;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(37,99,235,0.10);
+    }
+    .profile-username {
+        font-weight: bold;
+        color:rgb(255, 255, 255);
+        margin-right: 14px;
+        font-size: 1.08em;
+    }
+    .profile-menu .logout-btn {
+        background: #fb923c;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 7px 16px;
+        font-weight: bold;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .profile-menu .logout-btn:hover {
+        background: #ffb366;
+        color: #2563eb;
+    }
+    .light_tr {
+        background-color: #ffffff;
+    }
+    .dark_tr {
+        background-color: #c7c7c7ff;
+    }
+</style>
+<body>
+<header>
+    <a href='/activities'>
+        <button>🡸</button>
+    </a>
+    <div class="profile-menu">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('profile') }}" class="profile-link">
+                <img src="{{ url_for('static', filename=current_user.profile_pic) }}" alt="Profile Picture">
+                <span class="profile-username">{{ current_user.username }}</span>
+            </a>
+            <a href="{{ url_for('logout') }}">
+                <button class="logout-btn">Logout</button>
+            </a>
+        {% else %}
+            <a href="{{ url_for('login', next=request.path) }}">
+                <button>Login</button>
+            </a>
+        {% endif %}
+    </div>
+</header>
+<div class="map-container" id="map"></div>
+<div class="details-row">
+    <div class="detail-box">
+        <div class="detail-label">Distance</div>
+        <div class="detail-value">{{ (activity.distance / 1609.34) | round(2) }} mi</div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">
+            {% if activity.type == "Run" %}Pace{% else %}Speed{% endif %}
+        </div>
+        <div class="detail-value">
+            {% if activity.type == "Run" and activity.moving_time and activity.distance %}
+                {% set pace_sec = ((activity.moving_time / (activity.distance / 1609.34)) | round(0, 'floor')) | int %}
+                {% set pace_min = (pace_sec // 60) | int %}
+                {% set pace_rem_sec = (pace_sec % 60) | int %}
+                {{ pace_min }}:{% if pace_rem_sec < 10 %}0{% endif %}{{ pace_rem_sec }} min/mi
+            {% elif activity.type == "Ride" and activity.moving_time and activity.distance %}
+                {% set hours = activity.moving_time / 3600 %}
+                {% set miles = activity.distance / 1609.34 %}
+                {% set mph = (miles / hours) if hours > 0 else 0 %}
+                {{ mph | round(1) }} mph
+            {% else %}
+                N/A
+            {% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Time</div>
+        <div class="detail-value">
+            {% set hours = activity.moving_time // 3600 %}
+            {% set mins = (activity.moving_time % 3600) // 60 %}
+            {% set secs = activity.moving_time % 60 %}
+            {% if hours > 0 %}
+                {{ hours }}:{{ mins if mins > 9 else '0' ~ mins }}:{{ secs if secs > 9 else '0' ~ secs }}
+            {% else %}
+                {{ mins }}:{{ secs if secs > 9 else '0' ~ secs }}
+            {% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Avg HR</div>
+        <div class="detail-value">
+            {% if activity.average_heartrate %}{{ activity.average_heartrate | round(0) }} bpm{% else %}N/A{% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Max HR</div>
+        <div class="detail-value">
+            {% if activity.max_heartrate %}{{ activity.max_heartrate | round(0) }} bpm{% else %}N/A{% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Elevation Gain</div>
+        <div class="detail-value">
+            {% if activity.total_elevation_gain %}
+                {{ (activity.total_elevation_gain * 3.28084) | int }} ft
+            {% else %}
+                N/A
+            {% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Max Elevation</div>
+        <div class="detail-value">
+            {% if activity.elev_high %}
+                {{ (activity.elev_high * 3.28084) | int }} ft
+            {% else %}
+                N/A
+            {% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">Avg Cadence</div>
+        <div class="detail-value">
+            {% if activity.average_cadence %}{{ (activity.average_cadence * 2) | int }} spm{% else %}N/A{% endif %}
+        </div>
+    </div>
+    <div class="detail-box">
+        <div class="detail-label">kCalories Burned</div>
+        <div class="detail-value">
+            {% if activity.calories %}{{ activity.calories | int }} kcal{% else %}N/A{% endif %}
+        </div>
+    </div>
+</div>
+{% if fitness_changes %}
+<div style="background:#fff; margin: 32px auto; padding: 24px; border-radius: 12px; width: 60vw; max-width: 650px;">
+    <h3>Fitness Metrics for This Activity</h3>
+    <table style="width:100%; border-collapse:collapse;">
+        <tr class="light_tr">
+            <td>Relative Effort (RE):</td>
+            <td>{{ fitness_changes.relative_effort | round(2) }}</td>
+        </tr>
+        <tr class="dark_tr">
+            <td>Wattage:</td>
+            <td>{{ fitness_changes.watts | int }}</td>
+        </tr>
+        <tr class="light_tr">
+            <td>CTL Change:</td>
+            <td>+ {{ fitness_changes.ctl_change | round(2) }}</td>
+        </tr>
+        <tr class="dark_tr">
+            <td>ATL Change:</td>
+            <td>+ {{ fitness_changes.atl_change | round(2) }}</td>
+        </tr>
+        <tr class="light_tr">
+            <td>TSB Change:</td>
+            <td>{{ fitness_changes.tsb_change | round(2) }}</td>
+        </tr>
+    </table>
+</div>
+{% else %}
+  <p>No fitness data available for this activity.</p>
+{% endif %}
+<div style="background:#fff; margin: 32px auto; padding: 24px; border-radius: 12px; width: 90vw; max-width: 1100px;">
+    <h3>Lap Splits</h3>
+    <table style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#f0f0f0;">
+                <th>Lap</th>
+                <th>Distance (mi)</th>
+                <th>Pace</th>
+                <th>Avg HR</th>
+                <th>Avg Cadence</th>
+                <th>Elevation Gain (ft)</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for lap in laps %}
+            <tr style="text-align:center;" class="{{ loop.cycle('light_tr', 'dark_tr') }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ (lap.distance / 1609.34) | round(2) }}</td>
+                <td>
+                    {% if lap.moving_time and lap.distance %}
+                        {% set pace_sec = ((lap.moving_time / (lap.distance / 1609.34)) | round(0, 'floor')) | int %}
+                        {% set pace_min = (pace_sec // 60) | int %}
+                        {% set pace_rem_sec = (pace_sec % 60) | int %}
+                        {{ pace_min }}:{% if pace_rem_sec < 10 %}0{% endif %}{{ pace_rem_sec }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {% if lap.average_heartrate %}{{ lap.average_heartrate | round(0) }}{% else %}N/A{% endif %}
+                </td>
+                <td>
+                    {% if lap.average_cadence %}{{ (lap.average_cadence * 2) | round(0) }}{% else %}N/A{% endif %}
+                </td>
+                <td>
+                    {% if lap.total_elevation_gain is defined and lap.total_elevation_gain is not none %}
+                        {{ (lap.total_elevation_gain * 3.28084) | round(0, 'common') }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p>Lap Chart</p>
+<canvas id="lapChart" width="400" height="100" style="margin-top:30px;"></canvas>
+<p>Full Activity Chart</p>
+<canvas id="fullChart" width="400" height="100"></canvas>
+<script>
+    window.laps = {{ laps|tojson }};
+    window.streams = {{ streams|tojson }};
+    window.activity = {{ activity|tojson }};
+</script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@mapbox/polyline"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='activity_details.js') }}"></script>
+</body>
+</html>

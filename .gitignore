@@ -2,3 +2,5 @@
 strava_activities.json
 strava_tokens.db
 keys.txt
+config2.yaml
+__pycache__

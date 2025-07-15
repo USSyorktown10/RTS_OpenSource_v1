@@ -1,5 +1,5 @@
 # RTS - Runners Training System
-*v. 0.0.0-alpha.2*
+*v. 0.0.0-alpha.3*
 
 **Overview**  
 RTS is a comprehensive running tool designed to enhance your training experience. By leveraging AI analytics, RTS provides detailed insights into every run, helping you understand how various aspects of your life—such as sleep, nutrition, and hydration—impact your performance. Whether you're training for a marathon or just starting your fitness journey, RTS offers personalized recommendations, injury prevention tips, and advanced metrics to help you achieve your goals.

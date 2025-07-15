@@ -173,9 +173,7 @@ def input_run_data():
     # Calculate power (P) in watts
     velocity_mps = distance_km * 1000 / total_time_sec  # Velocity in m/s
     power = (
-        Erun * weight_kg * velocity_mps  # Energy cost of running
-        + 0.5 * air_density * Afrontal * Cd * velocity_mps**3  # Air resistance
-        + weight_kg * gravity * hosc * velocity_mps  # Vertical oscillation
+        (Erun * weight_kg * velocity_mps) + (weight_kg * g * hosc * cadence) + (0.5 * air_density * Afrontal * Cd * velocity_mps**3) + (weight_kg * gravity * velocity_mps * sine(elevation_gradient))  # Vertical oscillation
     )
 
     # Calculate HRavg as a percentage of max HR

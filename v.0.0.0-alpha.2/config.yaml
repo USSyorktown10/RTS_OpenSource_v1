@@ -1,0 +1,7 @@
+---
+redirect: 'http://localhost:8000/authorized'
+client_id: "CLIENT_ID_GOES_HERE"
+client_secret: "CLIENT_SECRECT_GOES_HERE"
+db: 'YOUR_DB.db'
+secret_key: 'YOU_MAKE_THIS_UP'
+dev-secret-key: 'YOU_MAKE_THIS_UP'

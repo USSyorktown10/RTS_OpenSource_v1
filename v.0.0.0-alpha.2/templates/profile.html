@@ -1,0 +1,277 @@
+<html>
+<head>
+    <title>Profile - RTS</title>
+    <link rel="icon" href="static/RTS.png" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f6ff;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #2563eb;
+            padding: 18px 0 14px 0;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+        }
+        header button {
+            background: #fb923c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-weight: bold;
+            font-size: 1em;
+            margin-left: 18px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        header button:hover {
+            background: #ffb366;
+            color: #2563eb;
+        }
+        .profile-menu {
+            display: flex;
+            align-items: center;
+        }
+        .profile-menu img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin: 0 10px;
+        }
+        .profile-menu h4 {
+            margin: 2px 0;
+            margin-right: 10px;
+            font-size: 30px;
+            color: #333;
+        }
+        p {
+            margin: 5px 0;
+            margin-left: 10px;
+            font-size: 18px;
+            color: #666;
+        }
+        table {
+            margin: 20px;
+            border-collapse: collapse;
+            width: 300px;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            padding: 5px;
+            text-align: left;
+            color: #333;
+        }
+        h3 {
+            margin-left: 20px;
+            color: #000;
+        }
+        .pfp-container {
+            cursor: pointer;
+        }
+        .profile-menu {
+            display: flex; /* Make the container a flex container */
+            align-items: center; /* Vertically align items in the center */
+        }
+
+        .profile-menu h4 {
+            margin-left: 10px; /* Add some space between the PFP and the text */
+        }
+        .user-stats table{
+            width: 24%
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href='/'>
+        <button>Home</button>
+    </a>
+    <a href='/activities'>
+        <button>View Activities</button>
+    </a>
+</header>
+<br>
+
+{% if current_user.is_authenticated %}
+    <div class = "profile-menu">
+        <form id="upload_pfp_form" action="{{ url_for('upload_pfp') }}" method="POST" enctype="multipart/form-data">
+            <label for="pfp_upload" class="pfp-container">
+                <img id="profile_picture" src="{{ url_for('static', filename=current_user.profile_pic) }}" alt="{{ current_user.username }}'s profile picture">
+                <input type="file" id="pfp_upload" name="profile_picture" accept="image/*" style="display: none;">
+            </label>
+        <h4>Hello, {{ current_user.username }}</h4>
+    </div>
+    <button type="submit" style="display: none;"></button> <!-- Hidden submit button -->
+    </form>
+
+    <script>
+        const pfpUpload = document.getElementById('pfp_upload');
+        const profilePicture = document.getElementById('profile_picture');
+        const uploadForm = document.getElementById('upload_pfp_form');
+
+        // Trigger file input when clicking on the profile picture
+        profilePicture.addEventListener('click', () => {
+            pfpUpload.click();
+        });
+
+        // Automatically submit the form when a file is selected and disable the form
+        pfpUpload.addEventListener('change', () => {
+            event.preventDefault(); // Prevent default form submission
+            if (pfpUpload.files.length > 0) { // Check if a file was selected
+                uploadForm.submit();
+                // Disable the form to prevent double submission
+                uploadForm.classList.add('is-submitting'); // Optional: Add a class for styling
+                const formElements = uploadForm.elements;
+                for (let i = 0; i < formElements.length; i++) {
+                    formElements[i].disabled = true;
+                }
+            }
+        });
+    </script>
+
+
+    <p>{{ user_data.firstname }} {{ user_data.lastname }}</p>
+    <table>
+        <tr>
+            {% if user_data.weight is not none %}
+                <td>Weight:</td>
+                <td>{{ ((user_data.weight) * 2.20462) | int }} lbs</td>
+            {% else %}
+                <td>Weight:</td>
+                <td>Not Set</td>
+            {% endif %}
+        </tr>
+        <tr>
+            {% if user_data.height is not none %}
+                {% set total_inches = user_data.height / 2.54 %}
+                {% set feet = total_inches // 12 %}
+                {% set inches = (total_inches % 12) | int %}
+                <td>Height:</td>
+                <td>{{ feet | int }} ft {{ inches | int }} in</td>
+            {% else %}
+                <td>Height:</td>
+                <td>Not Set</td>
+            {% endif %}
+        </tr>
+        <tr>
+            {% if user_data.age is not none %}
+                <td>Age:</td>
+                <td>{{ user_data.age }} years</td>
+            {% else %}
+                <td>Age:</td>
+                <td>Not Set</td>
+            {% endif %}
+        </tr>
+        <tr>
+            {% if user_data.sex is not none %}
+                <td>Sex:</td>
+                <td>
+                    <span id="sex-display">
+                        {% if user_data.sex == "M" %}
+                            Male
+                        {% elif user_data.sex == "F" %}
+                            Female
+                        {% else %}
+                            Other
+                        {% endif %}
+                    </span>
+                </td>
+            {% else %}
+                <td>Sex:</td>
+                <td>Not Set</td>
+            {% endif %}
+        </tr>
+    </table>
+    <h3>Heart Rate Zones</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Zone Number</th>
+                <th>Min HR</th>
+                <th>Max HR</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for zone in hr_zones %}
+                <tr>
+                    <td>{{ zone.zone_number }}</td>
+                    <td>{{ zone.min_hr }}</td>
+                    <td>
+                        {% if zone.max_hr == -1 %}
+                            ---
+                        {% else %}
+                            {{ zone.max_hr }}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h3>User Stats</h3>
+    <div class="user-stats">
+        <table>
+            <tr>
+                {% if user_stats.max_hr is not none %}
+                    <td>Max Heart Rate:</td>
+                    <td>{{ user_stats.max_hr }} BPM</td>
+                {% else %}
+                    <td>Max Heart Rate:</td>
+                    <td>Not Set</td>
+                {% endif %}
+            </tr>
+            <tr>
+                {% if user_stats.stride_length is not none %}
+                    {% set stride_len = user_stats.stride_length / 2.54 %}
+                    <td>Stride Length:</td>
+                    <td>{{ stride_len | int }} inches</td>
+                {% else %}
+                    <td>Stride Length:</td>
+                    <td>Not Set</td>
+                {% endif %}
+            </tr>
+            <tr>
+                {% if user_stats.afrontal is not none %}
+                    <td>Frontal Area:</td>
+                    <td>{{ user_stats.afrontal }} square meters</td>
+                {% else %}
+                    <td>Frontal Area:</td>
+                    <td>Not Set</td>
+                {% endif %}
+            </tr>
+            <tr>
+                {% if user_stats.hosc is not none %}
+                    <td>Horizontal Oscilation:</td>
+                    <td>{{ user_stats.hosc }} meters</td>
+                {% else %}
+                    <td>Horizontal Oscilation:</td>
+                    <td>Not Set</td>
+                {% endif %}
+            </tr>
+        </table>
+    </div>
+    <form action="/edit_profile" method="get">
+        <button type="submit" style="margin-left: 20px; background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-weight: bold;
+            font-size: 1em;
+            margin-left: 18px;
+            cursor: pointer;
+            transition: background 0.2s;">Edit Profile</button>
+    </form>
+{% else %}
+    <a href="{{ url_for('login', next=request.path) }}"><button>Login</button></a>
+{% endif %}
+</div>
+</body>
+</html>
