@@ -1,4 +1,6 @@
 # RTS - Runners Training System
+RTS has been rebranded to Runify and has moved to another [repository](https://github.com/USSyorktown10/Runify)
+This repository is still around for legacy
 *v. 0.0.0-alpha.3*
 
 **Overview**  

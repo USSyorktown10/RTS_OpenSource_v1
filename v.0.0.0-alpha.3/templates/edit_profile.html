@@ -194,6 +194,22 @@
     <label>Frontal Area:</label>
     <input type="number" step="0.01" name="afrontal" value="{{ user_stats.afrontal }}"> square meters<br><br>
 
+    <label>FTP:</label>
+    <input type="number" name="ftp" value="{{ user_stats.ftp }}"> watts<br><br>
+    {% if user_data.fastest_pace is not none %}
+        {% set total_seconds_per_mile = 1609.344 / user_data.fastest_pace %}
+        {% set minutes = (total_seconds_per_mile // 60) | int %}
+        {% set seconds = (total_seconds_per_mile % 60) | int %}
+    {% else %}
+        {% set minutes = 0 %}
+        {% set seconds = 0 %}
+    {% endif %}
+
+    <label>Fastest Mile:</label>
+    <p style="margin-left: 10px; font-style: italic; font-size: 12px;">A mile is 1609.34 meters. If you have a 1600 time instead, add 2 seconds.</p>
+    <input type="number" name="pace_minutes" value="{{ minutes }}" style="width: 75px;"> : 
+    <input type="number" name="pace_seconds" value="{{ seconds }}" style="width: 75px;"> min/mi<br><br>
+
     <button type="submit">Save</button>
     <button type="button" onclick="window.location.href='/profile'">Cancel</button>
 </form>

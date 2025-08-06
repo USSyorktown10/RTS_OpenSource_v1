@@ -1,0 +1,91 @@
+<html>
+    <head>
+        <title>Charts - RTS</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    </head>
+<body>
+
+<header>
+    <a href='/'><button>Home</button></a>
+    <a href='/activities'>
+        <button>Activities</button>
+    </a>
+    <div class="profile-menu">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('profile') }}" class="profile-link">
+                <img src="{{ url_for('static', filename=current_user.profile_pic) }}" alt="Profile Picture">
+                <span class="profile-username">{{ current_user.username }}</span>
+            </a>
+            <a href="{{ url_for('logout') }}">
+                <button class="logout-btn">Logout</button>
+            </a>
+        {% else %}
+            <a href="{{ url_for('login', next=request.path) }}">
+                <button>Login</button>
+            </a>
+        {% endif %}
+    </div>
+</header>
+
+<br><br>
+
+<canvas id="fitnessChart"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const labels = {{ data | map(attribute='day') | list | safe }};
+const ctl = {{ data | map(attribute='CTL') | list | safe }};
+const atl = {{ data | map(attribute='ATL') | list | safe }};
+const tsb = {{ data | map(attribute='TSB') | list | safe }};
+
+new Chart(document.getElementById('fitnessChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Fitness (CTL)',
+                data: ctl,
+                borderColor: 'blue',
+                fill: false
+            },
+            {
+                label: 'Fatigue (ATL)',
+                data: atl,
+                borderColor: 'red',
+                fill: false
+            },
+            {
+                label: 'Form (TSB)',
+                data: tsb,
+                borderColor: 'green',
+                fill: false
+            }
+        ]
+    },
+    options: {
+        plugins: {
+            title: { display: true, text: 'Daily Fitness (CTL), Fatigue (ATL), and Form (TSB)' }
+        },
+        scales: { y: { beginAtZero: false } }
+    }
+});
+</script>
+</script>
+<h2>Your Fitness Change Over Time</h2>
+<ul>
+    {% for i in range(1, data|length) %}
+        {% set yesterday = data[i-1] %}
+        {% set today = data[i] %}
+        <li>
+            {{ today.day }}: 
+            CTL {{ today.CTL | round(1) }} 
+            (Δ: {{ (today.CTL - yesterday.CTL) | round(1) }}) | 
+            ATL {{ today.ATL | round(1) }} 
+            (Δ: {{ (today.ATL - yesterday.ATL) | round(1) }}) | 
+            TSB {{ today.TSB | round(1) }} 
+            (Δ: {{ (today.TSB - yesterday.TSB) | round(1) }})
+        </li>
+    {% endfor %}
+</ul>
+</body>
+</html>

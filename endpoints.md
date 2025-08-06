@@ -1,4 +1,6 @@
 ## NOTE TO ALL: THE FOLLOWING WAS PLANNING BEFORE RTS WAS CREATED. DATA IN THIS MAY BE OUTDATED AND MAY SHOW A ROADMAP IF YOU ARE CLOSESLY TRACKING THIS PROJECT.
+RTS has been rebranded to Runify and has moved to another [repository](https://github.com/USSyorktown10/Runify)
+This repository is still around for legacy
 
 # Functions and Endpoints
 Currently, 99% of the following is purely planned, and not what *0.1.0-alpha.1* is going to look like. To see what the next release will look like, go to ```version_planning.md```.

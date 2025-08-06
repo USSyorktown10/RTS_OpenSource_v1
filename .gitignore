@@ -4,3 +4,6 @@ strava_tokens.db
 keys.txt
 config2.yaml
 __pycache__
+banister_params.pkl
+Activities.csv
+Activities_with_TSS.csv

@@ -97,6 +97,9 @@
     <a href='/activities'>
         <button>View Activities</button>
     </a>
+    <a href='/charts'>
+        <button>Charts</button>
+    </a>
 </header>
 <br>
 
@@ -189,6 +192,18 @@
                 <td>Not Set</td>
             {% endif %}
         </tr>
+        <tr>
+            {% if user_data.fastest_pace is not none %}
+                {% set total_seconds_per_mile = 1609.344 / user_data.fastest_pace %}
+                {% set minutes = (total_seconds_per_mile // 60) | int %}
+                {% set seconds = (total_seconds_per_mile % 60) | int %}
+                <td>Fastest Mile:</td>
+                <td>{{ minutes }}:{{ seconds | int }}</td>
+            {% else %}
+                <td>Fastest Mile:</td>
+                <td>Not Set</td>
+            {% endif %}
+        </tr>
     </table>
     <h3>Heart Rate Zones</h3>
     <table>
@@ -252,6 +267,15 @@
                     <td>{{ user_stats.hosc }} meters</td>
                 {% else %}
                     <td>Horizontal Oscilation:</td>
+                    <td>Not Set</td>
+                {% endif %}
+            </tr>
+            <tr>
+                {% if user_stats.ftp is not none %}
+                    <td>Functional Threshold Power:</td>
+                    <td>{{ user_stats.ftp | int}} Watts</td>
+                {% else %}
+                    <td>Functional Threshold Power:</td>
                     <td>Not Set</td>
                 {% endif %}
             </tr>

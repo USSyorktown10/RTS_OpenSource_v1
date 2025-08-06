@@ -1,5 +1,6 @@
 # RTS - Versions and Planning
-
+RTS has been rebranded to Runify and has moved to another [repository](https://github.com/USSyorktown10/Runify)
+This repository is still around for legacy
 - RTS follows semantic versioning or SEMVAR.
 
 ## Current Version

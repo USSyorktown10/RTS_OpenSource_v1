@@ -3,41 +3,11 @@
 <head>
 <title>Auth - RTS</title>
 <link rel="icon" href="static/RTS.png" type="image/x-icon">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 
 </head>
 <body>
 
-<style>
-    header {
-        background-color: #f8f9fa;
-        padding: 20px;
-        text-align: left;
-    }
-    .profile-menu {
-        position: absolute;
-        top: 20px;
-        right: 30px;
-        display: flex;
-        align-items: center;
-    }
-    .profile-link {
-        text-decoration: none;
-        color: inherit;
-        display: flex;
-        align-items: center;
-        gap: 4px; /* spacing between img and name */
-        cursor: pointer;
-    }
-    .profile-link img {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        margin-right: 10px;
-        border: 2px solid #2563eb;
-        background: #fff;
-        box-shadow: 0 1px 4px rgba(37,99,235,0.10);
-    }
-</style>
 {% if strava_connected %}
     <h3>Thank you for joining RTS. Your Strava account is linked!</h3>
     <h2>Last step! Fill out the following data so we can give you the most accurate </h2>
@@ -49,6 +19,9 @@
         <input name="stride_length" type="number" placeholder="Stride Length (in)" required> inches<br>
         <input name="hosc" type="float" placeholder="Horizontal Oscilation (Normally 0.05-0.12)" required> meters<br>
         <input name="afrontal" type="float" placeholder="Frontal Area (Normally 0.5)" required> square meters<br>
+        <input type="float" name="fastest_pace_min" placeholder="Fastest Mile (min)" style="width: 100px;" required> : 
+        <input type="float" name="fastest_pace_sec" placeholder="Fastest Mile (sec)" style="width: 100px;" required> min/mi*<br>
+        <input name="ftp" type="number" placeholder="Functional Threshold Power" required> Watts<br>
         <button type="submit">Finish</button>
     </form>
     {% with messages = get_flashed_messages() %}
@@ -56,6 +29,9 @@
         <ul>{% for msg in messages %}<li>{{ msg }}</li>{% endfor %}</ul>
       {% endif %}
     {% endwith %}
+    <footer>
+        <p>*A mile is 1609.34 meters. The standard conversion from a 1600 time to a Mile time is to add 2 seconds onto the time.</p>
+    </footer>
 {% else %}
     <h3>Authorization failed. Please try again.</h3>
 {% endif %}

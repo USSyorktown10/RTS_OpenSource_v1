@@ -4,6 +4,7 @@
     <title>{{ activity.name }} - RTS</title>
     <link rel="icon" href="{{ url_for('static', filename='RTS.png') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@mapbox/polyline"></script>    
 </head>
@@ -109,52 +110,6 @@
         font-size: 1.2em;
         text-align: center;
         margin-top: 20px;
-        color: #2563eb;
-    }
-    .profile-menu {
-        position: absolute;
-        top: 22px;
-        right: 36px;
-        display: flex;
-        align-items: center;
-        z-index: 10;
-    }
-    .profile-link {
-        text-decoration: none;
-        color: inherit;
-        display: flex;
-        align-items: center;
-        gap: 4px; /* spacing between img and name */
-        cursor: pointer;
-    }
-    .profile-link img {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        margin-right: 10px;
-        border: 2px solid #2563eb;
-        background: #fff;
-        box-shadow: 0 1px 4px rgba(37,99,235,0.10);
-    }
-    .profile-username {
-        font-weight: bold;
-        color:rgb(255, 255, 255);
-        margin-right: 14px;
-        font-size: 1.08em;
-    }
-    .profile-menu .logout-btn {
-        background: #fb923c;
-        color: #fff;
-        border: none;
-        border-radius: 6px;
-        padding: 7px 16px;
-        font-weight: bold;
-        font-size: 1em;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-    .profile-menu .logout-btn:hover {
-        background: #ffb366;
         color: #2563eb;
     }
     .light_tr {
@@ -269,6 +224,15 @@
         </div>
     </div>
 </div>
+{% if activity.rpe is not defined or activity.rpe is none %}
+  <form method="POST" action="{{ url_for('set_rpe', activity_id=activity.id) }}">
+    <label for="rpe">Enter RPE (1-10):</label>
+    <input type="number" id="rpe" name="rpe" min="1" max="10" step="0.1" required>
+    <button type="submit">Save RPE</button>
+  </form>
+{% else %}
+  <p>RPE: {{ activity.rpe }}</p>
+{% endif %}
 {% if fitness_changes %}
 <div style="background:#fff; margin: 32px auto; padding: 24px; border-radius: 12px; width: 60vw; max-width: 650px;">
     <h3>Fitness Metrics for This Activity</h3>
@@ -283,15 +247,27 @@
         </tr>
         <tr class="light_tr">
             <td>CTL Change:</td>
-            <td>+ {{ fitness_changes.ctl_change | round(2) }}</td>
+            {% if fitness_changes.ctl_change < 0 %}
+                <td>- {{ fitness_changes.ctl_change | round(2) | abs}}</td>
+            {% else %}
+                <td>+ {{ fitness_changes.ctl_change | round(2) }}</td>
+            {% endif %}
         </tr>
         <tr class="dark_tr">
             <td>ATL Change:</td>
-            <td>+ {{ fitness_changes.atl_change | round(2) }}</td>
+            {% if fitness_changes.atl_change < 0 %}
+                <td>- {{ fitness_changes.atl_change | round(2) | abs}}</td>
+            {% else %}
+                <td>+ {{ fitness_changes.atl_change | round(2) }}</td>
+            {% endif %}
         </tr>
         <tr class="light_tr">
             <td>TSB Change:</td>
-            <td>{{ fitness_changes.tsb_change | round(2) }}</td>
+            {% if fitness_changes.tsb_change < 0 %}
+                <td>- {{ fitness_changes.tsb_change | round(2) | abs}}</td>
+            {% else %}
+                <td>+ {{ fitness_changes.tsb_change | round(2) }}</td>
+            {% endif %}        
         </tr>
     </table>
 </div>

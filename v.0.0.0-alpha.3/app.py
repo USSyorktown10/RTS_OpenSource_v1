@@ -11,11 +11,17 @@ from werkzeug.utils import secure_filename
 from utils import cm_to_ft_in, kg_to_lbs, lbs_to_kg, ft_in_to_cm
 import os
 import math
+from collections import defaultdict
+import logging
+import joblib
+import numpy as np
+
 
 UPLOAD_FOLDER = 'static/pfps'  # Create a 'pfps' folder inside 'static'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
+banister_params = joblib.load('banister_params.pkl')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Ensure the upload folder exists
@@ -64,9 +70,9 @@ def load_user(user_id):
     return None
 
 CTLmin = 0
-CTLmax = 200
+CTLmax = 150
 ATLmin = 0
-ATLmax = 1000
+ATLmax = 150
 Tfit = 42
 Tfat = 7
 ISA_SEA_LEVEL_TEMP_C = 15.0
@@ -113,6 +119,7 @@ def init_db():
             user_id INTEGER NOT NULL,
             activity_id INTEGER,
             data TEXT,
+            rpe REAL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
@@ -127,6 +134,7 @@ def init_db():
             age INTEGER,
             firstname TEXT,
             lastname TEXT,
+            fastest_pace REAL,
             height_is_user_set BOOLEAN DEFAULT FALSE,
             weight_is_user_set BOOLEAN DEFAULT FALSE,
             sex_is_user_set BOOLEAN DEFAULT FALSE,
@@ -158,6 +166,7 @@ def init_db():
             hosc REAL,
             afrontal REAL,
             cd REAL,
+            ftp REAL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')    
@@ -181,22 +190,102 @@ def init_db():
     conn.commit()
     conn.close()
     
-def init_user_stats(max_hr, stride_length, hosc, afrontal):
+def init_user_stats(max_hr, stride_length, hosc, afrontal, ftp):
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     c.execute('SELECT id FROM users')
     user_ids = [row[0] for row in c.fetchall()]
     for user_id in user_ids:
         c.execute('''
-            INSERT OR IGNORE INTO user_stats (user_id, max_hr, stride_length, erun, hosc, afrontal, cd)
-            VALUES (?, ?, ?, 1.036, ?, ?, 1.2)
-        ''', (user_id, max_hr, stride_length, hosc, afrontal))
+            INSERT OR IGNORE INTO user_stats (user_id, max_hr, stride_length, erun, hosc, afrontal, cd, ftp)
+            VALUES (?, ?, ?, 1.036, ?, ?, 1.2, ?)
+        ''', (user_id, max_hr, stride_length, hosc, afrontal, ftp))
     conn.commit()
     conn.close()
 
+def calculate_tss(activity, user_stats, user_data, watts):
+    duration_hr = activity['elapsed_time'] / 3600
+    # 1. Heart Rate
+    if activity.get('average_heartrate') and user_stats['max_hr'] and user_stats['resting_hr']:
+        hr_avg = activity['average_heartrate']
+        hr_rest = user_stats['resting_hr']
+        hr_max = user_stats['max_hr']
+        if hr_max <= hr_rest:
+            logging.error(f"Invalid HR data: max_hr={hr_max}, resting_hr={hr_rest}")
+            return duration_hr * 50  # fallback
+        intensity = (hr_avg - hr_rest) / (hr_max - hr_rest)
+    # 2. RPE
+    elif activity.get('rpe'):
+        rpe = float(activity.get('rpe', 5))
+        intensity = rpe / 10  # Assuming 1–10 RPE scale
+    # 3. Fastest pace
+    elif user_data['fastest_pace'] and activity.get('distance') and activity.get('elapsed_time'):
+        pace = activity['distance'] / activity['elapsed_time']  # m/s
+        intensity = pace / user_data['fastest_pace']
+    # 4. FTP
+    elif user_stats['ftp'] and watts:
+        intensity = watts / user_stats['ftp']
+    else:
+        intensity = 0.5  # fallback
+
+    intensity = max(0, min(intensity, 1))
+    tss = duration_hr * intensity * 100
+
+    # Apply terrain gradient
+    if activity.get('total_elevation_gain', 0) > 0 and activity.get('distance', 0) > 0:
+        gradient = activity['total_elevation_gain'] / activity['distance']
+        tss *= (1 + gradient * 0.1)  # Adjust multiplier as needed
+    return tss
+
+def calculate_training_load(activities, current_day, user_stats, user_data, watts, tfit=42, tfat=7):
+    ctl = 0
+    atl = 0
+    daily_data = {}
+    now = datetime.now(timezone.utc).date()
+
+    for activity in activities:
+        try:
+            activity_timestamp = datetime.fromisoformat(activity['start_date_local'].replace('Z', '+00:00'))
+        except ValueError:
+            logging.error(f"Invalid timestamp for activity {activity.get('id')}")
+            continue
+        day = activity_timestamp.date()
+        if day > current_day:
+            break  # Stop processing future activities
+        
+        delta_t = (now - day).days
+        tss = calculate_tss(activity, user_stats, user_data, watts)
+        if tss is None:
+            continue
+
+        # Store activity contributions
+        key = (day.isoformat(), activity['id'])
+        daily_data[key] = {
+            'tss': tss,
+            'ctl_contribution': tss * math.exp(-delta_t / tfit),
+            'atl_contribution': tss * math.exp(-delta_t / tfat)
+        }
+
+        # Sum contributions for current day
+        if day == current_day:
+            ctl += daily_data[key]['ctl_contribution']
+            atl += daily_data[key]['atl_contribution']
+
+    return ctl, atl, daily_data
+
+def banister_recursive(params, tss_list):
+    k1, k2, PO, CTLC, ATLC = params
+    fitness = np.zeros(len(tss_list))
+    fatigue = np.zeros(len(tss_list))
+    for i in range(1, len(tss_list)):
+        fitness[i] = fitness[i-1] + (tss_list[i] - fitness[i-1]) / CTLC
+        fatigue[i] = fatigue[i-1] + (tss_list[i] - fatigue[i-1]) / ATLC
+    prediction = k1 * fitness + k2 * fatigue + PO
+    return fitness, fatigue, prediction
+
 def get_user_fitness(activities): 
     conn = sqlite3.connect(db_name)
-    conn.row_factory = sqlite3.Row  # Enable attribute access
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute('SELECT * FROM user_stats WHERE user_id=?', (current_user.id,))
     user_stats = c.fetchone()
@@ -204,110 +293,125 @@ def get_user_fitness(activities):
     user_data = c.fetchone()
     now = datetime.now(timezone.utc)
     
-    daily_data = {}
+    # Group activities by day
+    from collections import defaultdict
+    acts_by_day = defaultdict(list)
     for activity in activities:
-        if not activity.get('distance') or not activity.get('elapsed_time') or not activity.get('average_cadence'):
-            continue
+        day = activity['start_date_local'][:10]
+        acts_by_day[day].append(activity)
 
-        activity_timestamp = datetime.fromisoformat(activity['start_date_local'].replace('Z', '+00:00'))
-        if activity_timestamp.tzinfo is None:
-            activity_timestamp = activity_timestamp.replace(tzinfo=timezone.utc)
-        else:
-            activity_timestamp = activity_timestamp.astimezone(timezone.utc)
-        day = activity_timestamp.date().isoformat()
-        delta_t = (now - activity_timestamp).total_seconds() / (60 * 60 * 24)
-        exp_factor_ctl = math.exp(-delta_t / Tfit)
-        exp_factor_atl = math.exp(-delta_t / Tfat)
-        velocity_mps = activity['distance'] / activity['elapsed_time']
+    sorted_days = sorted(acts_by_day.keys())
+    CTL = 0
+    ATL = 0
+    ctl_by_day = {}
+    atl_by_day = {}
+    daily_data = {}
+    re_list = []
 
-        '''The following is using Newtons Law of Universal Gravitation'''
-        # Universal Gravitational Constant (m^3 kg^-1 s^-2)
-        G = 6.67430 * (10**-11) 
-        # Mass of Earth (kg)
-        M = 5.9722 * (10**24)
-        # Mean radius of Earth (m)
-        R = 6.371 * (10**6)
-        r = R + activity['elev_high']  # Distance from Earth's center to the object
-        gravity = (G * M) / (r**2)
+    for day in sorted_days:
+        re_today = 0
+        for act in acts_by_day[day]:
+            if not act.get('distance') or not act.get('elapsed_time') or not act.get('average_cadence'):
+                act['relative_effort'] = 0
+                continue
 
-        '''The following is using International Standard Atmosphere (ISA) model as a basis'''        
-        try:
-            # Temperature calculation
-            if activity.get('average_temp'):
-                if activity['average_temp'] is None:
-                    T = ISA_SEA_LEVEL_TEMP_C - LAPSE_RATE * activity['elev_high'] if activity['elev_high'] <= TROPOPAUSE_ALT else TROPOPAUSE_TEMP_C
-                else:
-                    T = activity['average_temp']
-                T_kelvin = T + 273.15
-
-                # Precompute constants
-                sea_level_temp_K = ISA_SEA_LEVEL_TEMP_C + 273.15
-                exponent = GRAVITY / (LAPSE_RATE * GAS_CONST)
-
-                # Pressure calculation
-                if activity['elev_high'] <= TROPOPAUSE_ALT:
-                    P = ISA_SEA_LEVEL_PRESSURE_PA * (T_kelvin / sea_level_temp_K) ** exponent
-                else:
-                    tropopause_temp_K = TROPOPAUSE_TEMP_C + 273.15
-                    P_tropopause = ISA_SEA_LEVEL_PRESSURE_PA * (tropopause_temp_K / sea_level_temp_K) ** exponent
-                    P = P_tropopause * math.exp(-GRAVITY * (activity['elev_high'] - TROPOPAUSE_ALT) / (GAS_CONST * T_kelvin))
-
-                # Air density calculation
-                air_density = P / (GAS_CONST * T_kelvin)
+            activity_timestamp = datetime.fromisoformat(act['start_date_local'].replace('Z', '+00:00'))
+            if activity_timestamp.tzinfo is None:
+                activity_timestamp = activity_timestamp.replace(tzinfo=timezone.utc)
             else:
-                T = ISA_SEA_LEVEL_TEMP_C - LAPSE_RATE * activity['elev_high'] if activity['elev_high'] <= TROPOPAUSE_ALT else TROPOPAUSE_TEMP_C
-                T_kelvin = T + 273.15
+                activity_timestamp = activity_timestamp.astimezone(timezone.utc)
+            day = activity_timestamp.date().isoformat()
+            delta_t = (now - activity_timestamp).total_seconds() / (60 * 60 * 24)
+            exp_factor_ctl = math.exp(-delta_t / Tfit)
+            exp_factor_atl = math.exp(-delta_t / Tfat)
+            velocity_mps = act['distance'] / act['elapsed_time']
 
-                # Precompute constants
-                sea_level_temp_K = ISA_SEA_LEVEL_TEMP_C + 273.15
-                exponent = GRAVITY / (LAPSE_RATE * GAS_CONST)
+            '''The following is using Newtons Law of Universal Gravitation'''
+            # Universal Gravitational Constant (m^3 kg^-1 s^-2)
+            G = 6.67430 * (10**-11) 
+            # Mass of Earth (kg)
+            M = 5.9722 * (10**24)
+            # Mean radius of Earth (m)
+            R = 6.371 * (10**6)
+            r = R + act['elev_high']  # Distance from Earth's center to the object
+            gravity = (G * M) / (r**2)
 
-                # Pressure calculation
-                if activity['elev_high'] <= TROPOPAUSE_ALT:
-                    # Assuming a standard lapse rate (temperature decrease with altitude)
-                    lapse_rate = 0.0065  # K/m (approximate lapse rate in the troposphere)
-                    estimated_T_kelvin = ISA_SEA_LEVEL_TEMP_K - (lapse_rate * activity['elev_high'])
-                    P = ISA_SEA_LEVEL_PRESSURE_PA * (estimated_T_kelvin / ISA_SEA_LEVEL_TEMP_K) ** EXPONENT
+            '''The following is using International Standard Atmosphere (ISA) model as a basis'''        
+            try:
+                # Temperature calculation
+                if act.get('average_temp'):
+                    if act['average_temp'] is None:
+                        T = ISA_SEA_LEVEL_TEMP_C - LAPSE_RATE * act['elev_high'] if act['elev_high'] <= TROPOPAUSE_ALT else TROPOPAUSE_TEMP_C
+                    else:
+                        T = act['average_temp']
+                    T_kelvin = T + 273.15
+
+                    # Precompute constants
+                    sea_level_temp_K = ISA_SEA_LEVEL_TEMP_C + 273.15
+                    exponent = GRAVITY / (LAPSE_RATE * GAS_CONST)
+
+                    # Pressure calculation
+                    if act['elev_high'] <= TROPOPAUSE_ALT:
+                        P = ISA_SEA_LEVEL_PRESSURE_PA * (T_kelvin / sea_level_temp_K) ** exponent
+                    else:
+                        tropopause_temp_K = TROPOPAUSE_TEMP_C + 273.15
+                        P_tropopause = ISA_SEA_LEVEL_PRESSURE_PA * (tropopause_temp_K / sea_level_temp_K) ** exponent
+                        P = P_tropopause * math.exp(-GRAVITY * (act['elev_high'] - TROPOPAUSE_ALT) / (GAS_CONST * T_kelvin))
+
+                    # Air density calculation
+                    air_density = P / (GAS_CONST * T_kelvin)
                 else:
-                    # For altitudes above the tropopause, use tropopause values and an exponential decay
-                    tropopause_temp_K = TROPOPAUSE_TEMP_C + 273.15
-                    P_tropopause = ISA_SEA_LEVEL_PRESSURE_PA * (tropopause_temp_K / ISA_SEA_LEVEL_TEMP_K) ** EXPONENT
-                    P = P_tropopause * math.exp(-GRAVITY * (activity['elev_high'] - TROPOPAUSE_ALT) / (GAS_CONST * tropopause_temp_K)) # Use tropopause temp for this part of the calculation, assuming a constant temperature in the stratosphere
+                    T = ISA_SEA_LEVEL_TEMP_C - LAPSE_RATE * act['elev_high'] if act['elev_high'] <= TROPOPAUSE_ALT else TROPOPAUSE_TEMP_C
+                    T_kelvin = T + 273.15
 
-                # Air density calculation
-                air_density = P / (GAS_CONST * T_kelvin)
-        except Exception as e:
-            print(e)
+                    # Precompute constants
+                    sea_level_temp_K = ISA_SEA_LEVEL_TEMP_C + 273.15
+                    exponent = GRAVITY / (LAPSE_RATE * GAS_CONST)
+
+                    # Pressure calculation
+                    if act['elev_high'] <= TROPOPAUSE_ALT:
+                        # Assuming a standard lapse rate (temperature decrease with altitude)
+                        lapse_rate = 0.0065  # K/m (approximate lapse rate in the troposphere)
+                        estimated_T_kelvin = ISA_SEA_LEVEL_TEMP_K - (lapse_rate * act['elev_high'])
+                        P = ISA_SEA_LEVEL_PRESSURE_PA * (estimated_T_kelvin / ISA_SEA_LEVEL_TEMP_K) ** EXPONENT
+                    else:
+                        # For altitudes above the tropopause, use tropopause values and an exponential decay
+                        tropopause_temp_K = TROPOPAUSE_TEMP_C + 273.15
+                        P_tropopause = ISA_SEA_LEVEL_PRESSURE_PA * (tropopause_temp_K / ISA_SEA_LEVEL_TEMP_K) ** EXPONENT
+                        P = P_tropopause * math.exp(-GRAVITY * (act['elev_high'] - TROPOPAUSE_ALT) / (GAS_CONST * tropopause_temp_K)) # Use tropopause temp for this part of the calculation, assuming a constant temperature in the stratosphere
+
+                    # Air density calculation
+                    air_density = P / (GAS_CONST * T_kelvin)
+            except Exception as e:
+                print("Air density problem")
+                print(e)
+            
+            cadence_sec = act['average_cadence'] / 60.0
+            watts = (1.036 * user_data['weight'] * velocity_mps) + (user_data['weight'] * gravity * user_stats['hosc'] * cadence_sec) + (0.5 * air_density * user_stats['afrontal'] * 1.4 * velocity_mps**3) + (user_data['weight'] * gravity * velocity_mps * act['total_elevation_gain'] / act['distance'])
+
+            act['relative_effort'] = calculate_tss(act, user_stats, user_data, watts)
+            re_today += act['relative_effort'] 
+            re_list.append(act['relative_effort'])
         
-        cadence_sec = activity['average_cadence'] / 60.0
-        watts = (1.036 * user_data['weight'] * velocity_mps) + (user_data['weight'] * gravity * user_stats['hosc'] * cadence_sec) + (0.5 * air_density * user_stats['afrontal'] * 1.4 * velocity_mps**3) + (user_data['weight'] * gravity * velocity_mps * math.sin(activity['total_elevation_gain'] / activity['distance']))
-        if activity.get('average_heartrate') and activity.get('max_heartrate'):
-            hr_avg_percentage = activity['average_heartrate'] / activity['max_heartrate']
-        elif activity.get('suffer_score') and activity['suffer_score'] != 0:
-            hr_avg_percentage = activity['suffer_score'] / 100
-        else:
-            hr_avg_percentage = 0.65
-
-        terrain_adjustment = 1 + (activity['total_elevation_gain'] / (activity['distance'] / 1000)) if (activity['distance'] / 1000) > 0 else 1
-        relative_effort = ((watts * (activity['distance'] / 1000)) / user_data['weight']) * (1 / activity['elapsed_time']) + (terrain_adjustment * hr_avg_percentage)
-
-        key = (day, activity['id'])
-        if key not in daily_data:
+        CTL_arr, ATL_arr, _ = banister_recursive(banister_params, re_list)
+        CTL = CTL + (re_today - CTL) / Tfit
+        ATL = ATL + (re_today - ATL) / Tfat
+        ctl_by_day[day] = CTL
+        atl_by_day[day] = ATL
+        for act in acts_by_day[day]:
+            key = (day, act['id'])
             daily_data[key] = {
-                'watts': 0.0,
-                'relative_effort': 0,
-                'ctl_sum': 0.0,
-                'atl_sum': 0.0
+                'watts': watts,
+                'relative_effort': act['relative_effort'],
+                'ctl': CTL,
+                'atl': ATL,
+                'tsb': CTL - ATL
             }
-        daily_data[key]['watts'] += watts
-        daily_data[key]['relative_effort'] += relative_effort
-        daily_data[key]['ctl_sum'] += relative_effort * exp_factor_ctl
-        daily_data[key]['atl_sum'] += relative_effort * exp_factor_atl
 
     # Write to DB
-    for (day, activity_id), data in daily_data.items():
-        ctl = data['ctl_sum']
-        atl = data['atl_sum']
+    for i, ((day, activity_id), data) in enumerate(list(daily_data.items())[:len(CTL_arr)]):
+        ctl = CTL_arr[i]
+        atl = ATL_arr[i]
         tsb = ctl - atl
         norm_ctl = (ctl - CTLmin) / (CTLmax - CTLmin) * 100 if ctl > 0 else 0
         norm_atl = (atl - ATLmin) / (ATLmax - ATLmin) * 100 if atl > 0 else 0
@@ -316,7 +420,7 @@ def get_user_fitness(activities):
             SELECT id FROM user_fitness WHERE user_id = ? AND activity_id = ? AND day = ?
         ''', (current_user.id, activity_id, day))
         row = c.fetchone()
-        if row:
+        if row is not None and row[0] is not None:
             c.execute('''
                 UPDATE user_fitness
                 SET watts = ?, relative_effort = ?, CTL = ?, ATL = ?, norm_CTL = ?, norm_ATL = ?, TSB = ?
@@ -369,14 +473,14 @@ def get_activity_fitness_changes(activity_id, db_name='strava_tokens.db'):
         'tsb_change': tsb - prev_tsb
     }
 
-def update_user_stats(user_id, max_hr, stride_length, hosc, afrontal):
+def update_user_stats(user_id, max_hr, stride_length, hosc, afrontal, ftp):
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     c.execute('''
         UPDATE user_stats
-        SET max_hr = ?, stride_length = ?, hosc = ?, afrontal = ?
+        SET max_hr = ?, stride_length = ?, hosc = ?, afrontal = ?, ftp = ?
         WHERE user_id = ?
-    ''', (max_hr, stride_length, hosc, afrontal, user_id))
+    ''', (max_hr, stride_length, hosc, afrontal, ftp, user_id))
     conn.commit()
     conn.close()
     
@@ -447,31 +551,45 @@ def fetch_and_save_activities(access_token, limit=100):
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         data = response.json()
+        new_or_updated = []
         if not data:
             break
         for act in data:
+            # Check if activity is new or updated
+            c.execute('SELECT data FROM activities WHERE user_id=? AND activity_id=?', (user_id, act['id']))
+            row = c.fetchone()
+            if row is None or json.loads(row[0]) != act:
+                new_or_updated.append(act)
+
+            # Insert or update activity
             c.execute('''
-                INSERT OR REPLACE INTO activities (id, user_id, activity_id, data)
-                VALUES (
-                    COALESCE((SELECT id FROM activities WHERE user_id=? AND activity_id=?), NULL),
-                    ?, ?, ?
-                )
-            ''', (user_id, act['id'], user_id, act['id'], json.dumps(act)))
+                INSERT OR IGNORE INTO activities (user_id, activity_id, data)
+                VALUES (?, ?, ?)
+            ''', (user_id, act['id'], json.dumps(act)))
+            c.execute('''
+                UPDATE activities SET data=? WHERE user_id=? AND activity_id=?
+            ''', (json.dumps(act), user_id, act['id']))
+
+            # Fetch RPE if set
+            c.execute('SELECT rpe FROM activities WHERE user_id=? AND activity_id=?', (user_id, act['id']))
+            rpe_row = c.fetchone()
+            if rpe_row and rpe_row[0] is not None:
+                act['rpe'] = rpe_row[0]
+
             activities.append(act)
             fetched += 1
-            
+
             if limit and fetched >= limit:
                 conn.commit()
                 conn.close()
-                get_user_fitness(data)
-                return activities
+                return activities, new_or_updated
         if limit and fetched >= limit:
             break
         page += 1
     conn.commit()
     conn.close()
-    get_user_fitness(data)
-    return activities
+    
+    return activities, new_or_updated
 
 @app.template_filter('localtime')
 def localtime_filter(s):
@@ -493,7 +611,7 @@ auth_url = (
 def index():
     strava_connected = get_tokens() is not None
     
-    return render_template('index.html', strava_connected=strava_connected)
+    return render_template('index2.html', strava_connected=strava_connected)
 
 @app.route('/link_to_strava')
 @login_required
@@ -562,10 +680,14 @@ def post_authorization():
         stride_length_metric = stride_length * 2.54
         hosc = request.form['hosc']
         afrontal = request.form['afrontal']
-        init_user_stats(max_hr, stride_length_metric, hosc, afrontal)
-        
+        fastest_pace_min = request.form['fastest_pace_min']
+        fastest_pace_sec = request.form['fastest_pace_sec']
+        fastest_pace = (float(fastest_pace_min) * 60) + float(fastest_pace_sec)
+        fastest_pace = 1609.34 / fastest_pace
+        ftp = request.form.get('ftp', None)
+        init_user_stats(max_hr, stride_length_metric, hosc, afrontal, ftp)
         height = (height_ft * 30.48) + (height_in * 2.54)
-        int(height)
+        height = int(height)
         
         conn = sqlite3.connect(db_name)
         c = conn.cursor()
@@ -573,11 +695,13 @@ def post_authorization():
         c.execute('''
             UPDATE user_data
             SET height = ?, height_is_user_set = 1,
-                age = ?, age_is_user_set = 1
+                age = ?, age_is_user_set = 1,
+                fastest_pace = ?
             WHERE user_id = ?
         ''', (
             height,
             age,
+            fastest_pace,
             current_user.id
         ))
 
@@ -585,8 +709,6 @@ def post_authorization():
         conn.close()
         return render_template('index.html')
     return render_template('authorized.html', strava_connected=True)
-        
-
 
 @app.route('/get_valid_token')
 def get_valid_token():
@@ -647,13 +769,39 @@ def get_weekly_mileage_history(activities, weeks=7):
     week_totals = [round(m, 2) for m in week_totals]
     return week_labels, week_totals
 
+@app.route('/charts')
+@login_required
+def charts():
+    conn = sqlite3.connect(db_name)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('''
+        SELECT day, MAX(CTL) as CTL, MAX(ATL) as ATL, MAX(TSB) as TSB
+        FROM user_fitness
+        WHERE user_id = ?
+        GROUP BY day
+        ORDER BY day ASC
+    ''', (current_user.id,))
+    data = [dict(row) for row in c.fetchall()]
+    conn.close()
+    chart_data = [
+        {
+            'day': row['day'],
+            'CTL': row['CTL'],
+            'ATL': row['ATL'],
+            'TSB': row['TSB'],
+        }
+        for row in data
+    ]
+    return render_template('charts.html', data=chart_data)
+
 @app.route('/activities')
 @login_required
 def activities():
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
-        
-    fields = ['height', 'weight', 'age']
+
+    fields = ['height', 'weight', 'age', 'fastest_pace']
     missing_fields = []
 
     for field in fields:
@@ -662,9 +810,15 @@ def activities():
         value = result[0] if result is not None else None
         if value is None:
             missing_fields.append(field)
+            
+    c.execute('SELECT ftp FROM user_stats WHERE user_id=?', (current_user.id,))
+    result = c.fetchone()
+    ftp = result[0] if result is not None else None
+    if ftp is None:
+        missing_fields.append('FTP')
 
     if missing_fields:
-        missing = ', '.join(missing_fields)
+        missing = ', '.join(missing_fields).replace('_', ' ')
     else:
         missing = "None"
 
@@ -673,21 +827,27 @@ def activities():
     activities = []
     try:
         if access_token:
-            activities = fetch_and_save_activities(access_token, limit=100)
+            activities, new_or_updated = fetch_and_save_activities(access_token, limit=100)
+            if new_or_updated:
+                get_user_fitness(activities)
         else:
             print("No valid access token")
             raise Exception("No valid access token found.")
     except Exception as e:
+        print("/activities loading exception")
+        print(e)
+        conn.close()
         conn = sqlite3.connect(db_name)
         c = conn.cursor()
-        c.execute('SELECT data FROM activities WHERE user_id=? ORDER BY activity_id DESC LIMIT 100', (current_user.id,))
-        activities = [json.loads(row[0]) for row in c.fetchall()]
+        activities = c.execute('SELECT data FROM activities WHERE user_id=? ORDER BY activity_id DESC LIMIT 100', (current_user.id,))
         conn.close()
     weekly_mileage = get_weekly_mileage(activities)
     week_labels, week_totals = get_weekly_mileage_history(activities)
 
     return render_template('activities.html', activities=activities, weekly_mileage=weekly_mileage, week_labels=week_labels, week_totals=week_totals, console_log=console_log, missing=missing)
 
+# The following may become something later, just not sure yet.
+'''
 @app.route('/calculations/<int:calc_type>')
 @login_required
 def calculations(calc_type):
@@ -729,30 +889,7 @@ def calculations(calc_type):
         pass
     else:
         return jsonify({'error': 'Invalid calculation type.'}), 400
-
 '''
-        CREATE TABLE IF NOT EXISTS user_stats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            max_hr INTEGER,
-            stride_length REAL,
-            erun REAL,
-            hosc REAL,
-            afrontal REAL,
-            cd REAL,
-            air_density REAL,
-            CTLmin REAL,
-            CTLmax REAL,
-            ATLmin REAL,
-            ATLmax REAL,
-            Tfit_days INTEGER,
-            Tfat_days INTEGER,
-            g REAL,
-            CTL REAL,
-            ATL REAL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    '''
 
 def get_user_stats():
     access_token = get_valid_access_token()
@@ -768,7 +905,6 @@ def get_user_stats():
         return existing_data
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
 
 def get_user_data():
     access_token = get_valid_access_token()
@@ -856,20 +992,6 @@ def get_user_data():
         print(f"Error in get_user_data: {e}")
         return None
 
-
-'''
-CREATE TABLE IF NOT EXISTS user_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            height INTEGER,
-            weight INTEGER,
-            sex TEXT,
-            age INTEGER,
-            firstname TEXT,
-            lastname TEXT,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-'''    
-
 @app.route('/edit_profile', methods=['GET', 'POST'])
 def edit_profile():
     user_data = get_user_data()
@@ -886,7 +1008,14 @@ def edit_profile():
         height_inches = float(request.form.get('height_inches'))
         age = int(request.form.get('age'))
         sex = request.form.get('sex')
-
+        pace_minutes = request.form.get('pace_minutes')
+        pace_seconds = request.form.get('pace_seconds')
+        if pace_minutes and pace_seconds:
+            pace_seconds = float(pace_seconds)
+            pace_minutes = float(pace_minutes)
+            fastest_pace = (pace_minutes * 60) + pace_seconds
+            fastest_pace = 1609.34 / fastest_pace
+        
         # Convert lbs to kg
         weight_kg = weight_lbs / 2.20462
         height_cm = (height_feet * 30.48) + (height_inches * 2.54)
@@ -900,13 +1029,15 @@ def edit_profile():
             SET weight = ?, weight_is_user_set = 1,
                 height = ?, height_is_user_set = 1,
                 age = ?, age_is_user_set = 1,
-                sex = ?, sex_is_user_set = 1
+                sex = ?, sex_is_user_set = 1,
+                fastest_pace = ?
             WHERE user_id = ?
         ''', (
             weight_kg,
             height_cm,
             age,
             sex,
+            fastest_pace,
             current_user.id
         ))
 
@@ -918,7 +1049,8 @@ def edit_profile():
         stride_length_metric = stride_length * 2.54
         hosc = float(request.form.get('hosc'))
         afrontal = float(request.form.get('afrontal'))
-        update_user_stats(current_user.id, max_hr, stride_length_metric, hosc, afrontal)
+        ftp = request.form.get('ftp')
+        update_user_stats(current_user.id, max_hr, stride_length_metric, hosc, afrontal, ftp)
         
         return redirect(url_for('profile'))  # back to view
     return render_template('edit_profile.html', user_data=user_data, user_stats=user_stats)
@@ -987,6 +1119,42 @@ def unlink_strava():
         return jsonify({"message": "Strava account has been disconnected from Strava."}), 200
     return redirect(url_for('index', unlinked=1))
 
+def load_activities_with_rpe(user_id):
+    conn = sqlite3.connect(db_name)
+    c = conn.cursor()
+    c.execute('SELECT activity_id, data, rpe FROM activities WHERE user_id=?', (user_id,))
+    activities = []
+    for row in c.fetchall():
+        act = json.loads(row[1])
+        if row[2] is not None:
+            act['rpe'] = row[2]
+        activities.append(act)
+    conn.close()
+    return activities
+
+@app.route('/set_rpe/<int:activity_id>', methods=['POST'])
+@login_required
+def set_rpe(activity_id):
+    rpe = request.form.get('rpe')
+    if rpe is not None:
+        conn = sqlite3.connect(db_name)
+        c = conn.cursor()
+        # Update rpe column
+        c.execute('UPDATE activities SET rpe=? WHERE user_id=? AND activity_id=?', (rpe, current_user.id, activity_id))
+        # Also update the JSON data
+        c.execute('SELECT data FROM activities WHERE user_id=? AND activity_id=?', (current_user.id, activity_id))
+        row = c.fetchone()
+        if row is not None and row[0] is not None:
+            act_data = json.loads(row[0])
+            act_data['rpe'] = float(rpe)
+            c.execute('UPDATE activities SET data=? WHERE user_id=? AND activity_id=?', (json.dumps(act_data), current_user.id, activity_id))
+        conn.commit()
+        conn.close()
+    # After updating RPE in DB
+    activities = load_activities_with_rpe(current_user.id)
+    get_user_fitness(activities)
+    return redirect(url_for('activity_details', activity_id=activity_id))
+
 @app.route('/activity/<int:activity_id>')
 def activity_details(activity_id):
     access_token = get_valid_access_token()
@@ -1006,6 +1174,13 @@ def activity_details(activity_id):
         streams_resp.raise_for_status()
         streams = streams_resp.json()
         get_user_data()
+        conn = sqlite3.connect(db_name)
+        c = conn.cursor()
+        c.execute('SELECT rpe FROM activities WHERE user_id=? AND activity_id=?', (current_user.id, activity_id))
+        row = c.fetchone()
+        conn.close()
+        rpe = row[0] if row is not None and row[0] is not None else None
+        activity['rpe'] = rpe
         user_id = current_user.id  # or however you get the logged-in user's id
         fitness_changes = get_activity_fitness_changes(activity_id)
         return render_template('activity_details.html', activity=activity, laps=laps, streams=streams, fitness_changes=fitness_changes)
@@ -1045,6 +1220,9 @@ def signup():
             return render_template('signup.html')
         password_hash = generate_password_hash(password)
         c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, password_hash))
+        conn.commit()
+        c.execute('SELECT id, username, profile_pic FROM users WHERE username=?', (username,))
+        row = c.fetchone()
         conn.commit()
         c.execute('SELECT id, username, profile_pic FROM users WHERE username=?', (username,))
         row = c.fetchone()
